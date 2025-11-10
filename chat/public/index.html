@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LAN Team Chat</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      margin: 20px;
+    }
+    #chat-box {
+      background: white;
+      border: 1px solid #ccc;
+      padding: 10px;
+      height: 400px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+    #controls {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    input, button {
+      padding: 6px;
+    }
+    .message {
+      margin: 4px 0;
+    }
+    .file-link {
+      color: #0077cc;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <h2>LAN Team Chat</h2>
+
+  <div id="chat-box"></div>
+
+  <div id="controls">
+    <input id="name" placeholder="Enter your name">
+    <input id="message" placeholder="Type a message...">
+    <button id="send">Send</button>
+  </div>
+
+  <div id="file-upload">
+    <input type="file" id="fileInput">
+    <button id="sendFile">Upload File</button>
+    <span id="uploadStatus"></span>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const chatBox = document.getElementById('chat-box');
+    const nameBox = document.getElementById('name');
+    const messageBox = document.getElementById('message');
+    const sendBtn = document.getElementById('send');
+    const fileInput = document.getElementById('fileInput');
+    const sendFileBtn = document.getElementById('sendFile');
+    const uploadStatus = document.getElementById('uploadStatus');
+
+    // --- Send Text Messages ---
+    sendBtn.addEventListener('click', () => {
+      const name = nameBox.value.trim();
+      const msg = messageBox.value.trim();
+      if (!name || !msg) return;
+      socket.emit('chat message', `${name}: ${msg}`);
+      messageBox.value = '';
+    });
+
+    // --- Display Incoming Messages ---
+    socket.on('chat message', msg => {
+      const div = document.createElement('div');
+      div.classList.add('message');
+      div.textContent = msg;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    });
+
+    // --- File Upload ---
+    sendFileBtn.addEventListener('click', () => {
+      const file = fileInput.files[0];
+      if (!file) return alert('Select a file first');
+      const formData = new FormData();
+      formData.append('file', file);
+
+      uploadStatus.textContent = 'Uploading...';
+
+      fetch('/upload', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => {
+        if (res.ok) {
+          uploadStatus.textContent = 'Upload complete ✔️';
+          fileInput.value = '';
+          setTimeout(() => uploadStatus.textContent = '', 2000);
+        } else {
+          uploadStatus.textContent = 'Upload failed ❌';
+        }
+      })
+      .catch(() => uploadStatus.textContent = 'Error uploading file');
+    });
+
+    // --- Display Uploaded Files ---
+    socket.on('file uploaded', file => {
+      const div = document.createElement('div');
+      div.classList.add('message');
+      
+      if (/\.(jpg|jpeg|png|gif)$/i.test(file.name)) {
+        const img = document.createElement('img');
+        img.src = file.path;
+        img.alt = file.name;
+        img.style.maxWidth = '150px';
+        img.style.display = 'block';
+        div.appendChild(img);
+      } else {
+        const link = document.createElement('a');
+        link.href = file.path;
+        link.textContent = `📎 ${file.name}`;
+        link.classList.add('file-link');
+        link.download = file.name;
+        div.appendChild(link);
+      }
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    });
+  </script>
+</body>
+</html>
